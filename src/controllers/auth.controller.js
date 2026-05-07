@@ -70,10 +70,14 @@ const verifyOTPHandler = asyncHandler(async (req, res) => {
 
   verifyOTP(phone, otp);
 
-  let user = await User.findOne({ phone });
+  let user = await User.findOne({
+    $or: [{ phone }, { phone: `+91${phone}` }],
+  });
 
   if (!user) {
     user = await User.create({ phone });
+  } else if (user.phone !== phone) {
+    user.phone = phone;
   }
 
   const { accessToken, refreshToken } = generateTokens(user._id.toString());
