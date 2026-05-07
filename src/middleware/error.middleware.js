@@ -14,7 +14,12 @@ const errorHandler = (err, req, res, next) => {
       error = new ApiError(400, 'Validation failed', errors);
     } else if (error.code === 11000 || error.code === 11001) {
       const field = Object.keys(error.keyValue)[0];
-      error = new ApiError(409, `Duplicate value for ${field}. This ${field} is already in use.`);
+      const path = req.path || '';
+      const isContactPath = path.includes('/contact');
+      const message = isContactPath
+        ? `Duplicate value for ${field}. This ${field} is already in use.`
+        : `Unable to process request. Please try again.`;
+      error = new ApiError(409, message);
     } else if (error.name === 'JsonWebTokenError') {
       error = new ApiError(401, 'Invalid token');
     } else if (error.name === 'TokenExpiredError') {

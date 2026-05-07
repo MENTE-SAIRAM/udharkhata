@@ -117,7 +117,22 @@ const verifyOTPHandler = asyncHandler(async (req, res) => {
 
   const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
   user.refreshToken = hashedRefreshToken;
-  await user.save();
+  
+  try {
+    await user.save();
+  } catch (error) {
+    // If save hits duplicate key on phone (race condition), reload and continue
+    if (error?.code === 11000 && error?.keyPattern?.phone) {
+      const reloadedUser = await User.findById(user._id);
+      if (!reloadedUser) {
+        throw new ApiError(500, 'Unable to complete login. Please try again.');
+      }
+      // Update ref to reloaded user but keep the tokens we just generated
+      user = reloadedUser;
+    } else {
+      throw error;
+    }
+  }
 
   // Set auth cookies for both web and mobile
   setAccessTokenCookie(res, accessToken);
