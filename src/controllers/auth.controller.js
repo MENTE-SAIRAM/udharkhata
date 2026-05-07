@@ -7,6 +7,13 @@ import asyncHandler from '../utils/asyncHandler.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import ApiError from '../utils/ApiError.js';
 
+const normalizePhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 10) return digits;
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return null;
+};
+
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.JWT_ACCESS_SECRET, {
     expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
@@ -40,10 +47,10 @@ const setAccessTokenCookie = (res, accessToken) => {
 };
 
 const sendOTPHandler = asyncHandler(async (req, res) => {
-  const { phone } = req.body;
+  const phone = normalizePhone(req.body?.phone);
 
-  if (!phone || !/^\+91[0-9]{10}$/.test(phone)) {
-    throw new ApiError(400, 'Valid phone number in +91 format is required');
+  if (!phone) {
+    throw new ApiError(400, 'Valid 10-digit phone number is required');
   }
 
   const otp = generateOTP();
@@ -54,7 +61,8 @@ const sendOTPHandler = asyncHandler(async (req, res) => {
 });
 
 const verifyOTPHandler = asyncHandler(async (req, res) => {
-  const { phone, otp } = req.body;
+  const phone = normalizePhone(req.body?.phone);
+  const { otp } = req.body;
 
   if (!phone || !otp) {
     throw new ApiError(400, 'Phone and OTP are required');

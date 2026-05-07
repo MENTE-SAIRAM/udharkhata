@@ -5,6 +5,13 @@ import ApiResponse from '../utils/ApiResponse.js';
 import ApiError from '../utils/ApiError.js';
 import { FREE_TIER_MAX_CONTACTS, PAGINATION_DEFAULT_LIMIT } from '../utils/constants.js';
 
+const normalizePhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 10) return digits;
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return null;
+};
+
 const getContacts = asyncHandler(async (req, res) => {
   const contacts = await Contact.find({ owner: req.user._id, deletedAt: null })
     .sort({ netBalance: -1 })
@@ -21,7 +28,12 @@ const getContacts = asyncHandler(async (req, res) => {
 });
 
 const createContact = asyncHandler(async (req, res) => {
-  const { name, phone, colorHex, avatarUrl, notes } = req.body;
+  const { name, colorHex, avatarUrl, notes } = req.body;
+  const phone = normalizePhone(req.body?.phone);
+
+  if (!phone) {
+    throw new ApiError(400, 'Phone number must be exactly 10 digits');
+  }
 
   const contactCount = await Contact.countDocuments({ owner: req.user._id, deletedAt: null });
   if (!req.user.isPremium && contactCount >= FREE_TIER_MAX_CONTACTS) {
@@ -68,7 +80,12 @@ const getContact = asyncHandler(async (req, res) => {
 });
 
 const updateContact = asyncHandler(async (req, res) => {
-  const { name, phone, colorHex, avatarUrl, notes } = req.body;
+  const { name, colorHex, avatarUrl, notes } = req.body;
+  const normalizedPhone = req.body?.phone === undefined ? undefined : normalizePhone(req.body.phone);
+
+  if (req.body?.phone !== undefined && !normalizedPhone) {
+    throw new ApiError(400, 'Phone number must be exactly 10 digits');
+  }
 
   const contact = await Contact.findOne({
     _id: req.params.id,
@@ -80,10 +97,10 @@ const updateContact = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Contact not found');
   }
 
-  if (phone && phone !== contact.phone) {
+  if (normalizedPhone && normalizedPhone !== contact.phone) {
     const existing = await Contact.findOne({
       owner: req.user._id,
-      phone,
+      phone: normalizedPhone,
       _id: { $ne: contact._id },
       deletedAt: null,
     });
@@ -93,7 +110,7 @@ const updateContact = asyncHandler(async (req, res) => {
   }
 
   if (name !== undefined) contact.name = name;
-  if (phone !== undefined) contact.phone = phone;
+  if (normalizedPhone !== undefined) contact.phone = normalizedPhone;
   if (colorHex !== undefined) contact.colorHex = colorHex;
   if (avatarUrl !== undefined) contact.avatarUrl = avatarUrl;
   if (notes !== undefined) contact.notes = notes;

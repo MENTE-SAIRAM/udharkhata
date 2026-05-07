@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
-      match: [/^\+91[0-9]{10}$/, 'Phone must be in +91 format with 10 digits'],
+      match: [/^\d{10}$/, 'Phone must be exactly 10 digits'],
     },
     name: {
       type: String,

@@ -4,7 +4,7 @@ export const sendOTPSchema = z.object({
   body: z.object({
     phone: z
       .string()
-      .regex(/^\+91[0-9]{10}$/, 'Phone must be in +91 format with 10 digits'),
+      .regex(/^\d{10}$/, 'Phone must be exactly 10 digits'),
   }),
 });
 
@@ -12,7 +12,7 @@ export const verifyOTPSchema = z.object({
   body: z.object({
     phone: z
       .string()
-      .regex(/^\+91[0-9]{10}$/, 'Phone must be in +91 format with 10 digits'),
+      .regex(/^\d{10}$/, 'Phone must be exactly 10 digits'),
     otp: z.string().length(6, 'OTP must be 6 digits'),
   }),
 });

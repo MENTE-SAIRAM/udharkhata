@@ -91,11 +91,12 @@ const sendOTP = async (phone, otp) => {
   }
 
   try {
+    const toPhone = phone.startsWith('+') ? phone : `+91${phone}`;
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
     await client.messages.create({
       body: `Your Udhar Khata verification code is: ${otp}. Valid for 5 minutes.`,
       from: process.env.TWILIO_PHONE_NUMBER,
-      to: phone,
+      to: toPhone,
     });
     return true;
   } catch (error) {
