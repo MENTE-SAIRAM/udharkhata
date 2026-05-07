@@ -14,6 +14,18 @@ const normalizePhone = (phone) => {
   return null;
 };
 
+const findUserByPhone = (phone) => {
+  return User.findOne({
+    $or: [{ phone }, { phone: `+91${phone}` }],
+  });
+};
+
+const findUserByPhoneFallback = (phone) => {
+  return User.findOne({
+    phone: { $regex: `^(?:\\+?91)?${phone}$` },
+  });
+};
+
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.JWT_ACCESS_SECRET, {
     expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
@@ -70,12 +82,25 @@ const verifyOTPHandler = asyncHandler(async (req, res) => {
 
   verifyOTP(phone, otp);
 
-  let user = await User.findOne({
-    $or: [{ phone }, { phone: `+91${phone}` }],
-  });
+  let user = await findUserByPhone(phone);
 
   if (!user) {
-    user = await User.create({ phone });
+    try {
+      user = await User.create({ phone });
+    } catch (error) {
+      // If concurrent verify requests race, recover by reloading the now-existing user.
+      if (error?.code === 11000 && (error?.keyPattern?.phone || error?.keyValue?.phone)) {
+        user = await findUserByPhone(phone);
+        if (!user) {
+          user = await findUserByPhoneFallback(phone);
+        }
+      } else {
+        throw error;
+      }
+    }
+    if (!user) {
+      throw new ApiError(500, 'Unable to complete login. Please try again.');
+    }
   } else if (user.phone !== phone) {
     user.phone = phone;
   }
