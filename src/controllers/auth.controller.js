@@ -80,15 +80,17 @@ const verifyOTPHandler = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Phone and OTP are required');
   }
 
+  // Verify OTP first
   verifyOTP(phone, otp);
 
+  // Find existing user by phone (handles legacy +91 format)
   let user = await findUserByPhone(phone);
 
+  // If not found, create new user or recover from concurrent race
   if (!user) {
     try {
       user = await User.create({ phone });
     } catch (error) {
-      // If concurrent verify requests race, recover by reloading the now-existing user.
       if (error?.code === 11000 && (error?.keyPattern?.phone || error?.keyValue?.phone)) {
         user = await findUserByPhone(phone);
         if (!user) {
@@ -98,22 +100,30 @@ const verifyOTPHandler = asyncHandler(async (req, res) => {
         throw error;
       }
     }
-    if (!user) {
-      throw new ApiError(500, 'Unable to complete login. Please try again.');
-    }
-  } else if (user.phone !== phone) {
+  }
+
+  // Ensure user is found or created; if not, fail gracefully
+  if (!user) {
+    throw new ApiError(500, 'Unable to complete login. Please try again.');
+  }
+
+  // Normalize phone if legacy format detected
+  if (user.phone !== phone) {
     user.phone = phone;
   }
 
+  // Generate fresh tokens for this login session
   const { accessToken, refreshToken } = generateTokens(user._id.toString());
 
   const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
   user.refreshToken = hashedRefreshToken;
   await user.save();
 
+  // Set auth cookies for both web and mobile
   setAccessTokenCookie(res, accessToken);
   setRefreshTokenCookie(res, refreshToken);
 
+  // Return login success with user and tokens
   new ApiResponse(200, {
     user: {
       _id: user._id,
